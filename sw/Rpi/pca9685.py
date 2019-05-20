@@ -16,7 +16,7 @@
 from __future__ import division
 import time
 
-SIM = False
+SIM = True
  
 if SIM:
     class Sbus():

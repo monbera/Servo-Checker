@@ -10,22 +10,25 @@
 # Licence:     MIT see https://opensource.org/licenses/MIT
 # -----------------------------------------------------------------------------
 import time
-from rcapp import PWM_Controller, UDP_Client, Observer, SIM
+from rcapp import PWM_Controller, UDP_Client, Observer, SIM, Utility
 
 
 def main():
+    rcname = "ServoChecker"
     # Configuration general prototype
     # Channel 0..14: Servos
     # Channel 15: Digital Output
-    if not SIM:
-        time.sleep(10)  
+    while (Utility.get_ip_address('wlan0') == "127.0.0.0"):
+        print ("wait for networking")
+        time.sleep(1) 
     L298Channels = []
     DIOs = [15]
     Inverted = []  
     SC = PWM_Controller(0.5, 2.5, 50, L298Channels, DIOs, Inverted)
     SC.fail_safe()
-    S = UDP_Client(SC,'', 6000, 6100, 10, "ServoChecker")
-    O = Observer(SC, 30.0, "ServoChecker")
+
+    S = UDP_Client(SC,'', 6000, 6100, 10, rcname)
+    O = Observer(SC, 30.0, rcname)
 
 
 if __name__ == '__main__':

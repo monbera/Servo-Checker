@@ -23,7 +23,7 @@ Chapter 3.2.2.5 "Preparation of the Raspberry Pi" [1] describes the necessary st
 
 ## Step 4
 On the mobile phone the data connection to the provider should be switched off and the hot spot function of the smartphone should be switched on. The hot spot configuration must match to the data of the "wpa_supplicant.conf" on the Raspberry Pi. 
-After the 'ServoChecker' app has been started, the communication indicator lights up red. Now the Servo Tester (Rpi) can be switched on. After starting the communication  the status of the indicator changes to 'green'.  Now you can test servos on the channels 0..14 Servos. 
+After the 'ServoChecker' app has been started, the communication indicator lights up red. Now the Servo Tester (Rpi) can be switched on. After starting the communication  the status of the indicator changes to 'green'.  Now you can test servos on the channels 0..14. 
 
 [1]	https://github.com/monbera/TelDaControl
 
