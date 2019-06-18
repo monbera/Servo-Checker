@@ -39,19 +39,30 @@ int overCircle(int x, int y, int radius) {
  Dertermines if a finger or the mouse is touching the scree and change the state of 
  switches 
  ---------------------------------------------------------------------------------
- */
-void mousePressed() { 
-  if (S1.overS() &&  (ip_received == true)) {
-    if (udp.send(S1.getSval(), ip, port) == false) {
-      ip_received = false;
+*/
+
+void mousePressed()
+{ 
+  // Start adaptation required  
+  if ((ICom.err_state() & ERR_IP) == NO_ERR) // ip valid
+  {
+    if (S1.overS())
+    {
+      if (udp.send(S1.getSval(), ip, port) == false)
+      {
+        ICom.set_err_state(ERR_UDP);      
+      }
     }
-  }
-  if (S2.overS() &&  (ip_received == true)) {
-    if (udp.send(S2.getSval(), ip, port) == false) {
-      ip_received = false;
+    if (S2.overS())
+    {
+      if (udp.send(S2.getSval(), ip, port) == false)
+      {
+      ICom.set_err_state(ERR_UDP);
+      }
     }
-  }
-  if (C.overT()) {
-    L2.setChannel(C.getChannel());
+    if (C.overT()) 
+    {
+      L2.setChannel(C.getChannel());
+    }
   }
 }

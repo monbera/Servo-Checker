@@ -4,68 +4,82 @@
  
  Author:      Bernd Hinze
  
- Created:     03.05.2019
+ Created:     17.06.2019
  Copyright:   (c) Bernd Hinze 2019
  Licence:     MIT see https://opensource.org/licenses/MIT
  ------------------------------------------------------------------------------
  */
 import hypermedia.net.*;
 UDP udp;
+int ERR_IP = 1, ERR_RPI = 2, ERR_UDP = 4, NO_ERR = 0;
+// Start adaptation required
 LeverT L2;
 SwitchApp S1;
 Switch S2;
 Channel C;
 Indicator ICom;
-
+// End adaptation 
+PFont F;
 String ip       = "";  // the remote IP address
 int port        = 6100;    // the destination port
 int tms_received = millis();
-int tms_received_tout = 5 * 1000; // 20s
-boolean ip_received = false; 
-String ID = "";            // receiver ID 
+int tms_received_tout = 5 * 1000; // 5s
 String [] CodeTable  =  {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", ";", "<", "=", ">", "?"}; 
 
 
-void setup() {
-  if (SIM) {
-    ip  = "127.0.0.1";  // the remote IP address
-    ip_received = true;
-  }
+void setup()
+{
   orientation(LANDSCAPE); 
   background (#63aad0);
+  F = createFont("Arial", 18, true); 
+  textFont(F, int(height * 0.04));
+
+ // Start adaptation required
   L2 = new LeverT (int(height*0.6), int(width*0.3), int(width*0.7), int (50), 0);
   S1 = new SwitchApp(int(height * 0.04), int(width * 0.08), int(height * 0.15), 15, 100); 
-  S2 = new Switch(int(height * 0.04), int(width * 0.16), int(height * 0.15), 15, 255);
+  S2 = new Switch(int(height * 0.04), int(width * 0.18), int(height * 0.15), 15, 255);
   C = new Channel(int(width * 0.5), int(height * 0.85), "L");
-  ICom = new Indicator(ID, "No Device", 0.95, 0.10);
-  PFont Ltrimf;
-  Ltrimf = createFont("Arial-BoldMT-16.vlw", 16);   
-  textFont(Ltrimf, int(height * 0.04));
+ // End adaptation 
+
+ICom = new Indicator(0.95, 0.10);
+
+  if (SIM)
+  {
+    ip  = "192.168.1.2";  // the remote IP address
+    ICom.clear_err_state();
+  }
   udp = new UDP (this, 6000);
   udp.listen( true );
 }
 
 
-void draw() {
+void draw() 
+{
   background (#63aad0);
+  // Start adaptation required
   displayName();
   L2.display();
   S1.display();
   S2.display();
   C.display();
-  // End Adaptation 
-  ICom.display(ip_received);
-  if (ip_received == true) {
+  // End Adaptation
+  ICom.display();
+  if ((ICom.err_state() & ERR_IP) == NO_ERR)   // ip valid
+  {
     try {
       udp.send((L2.getVal(L2.px)), ip, port);
-      println(L2.getVal(L2.px));
+      //println(L2.getVal(L2.px));
     }
     catch (Exception e) {
     }
   }
-  if (SIM ==false) {
-    if ((millis() - tms_received) > tms_received_tout) {
-      ip_received = false;
+  if ((millis() - tms_received) > tms_received_tout) {
+    ICom.set_err_state(ERR_RPI);
+    // when timeout and rpi app has been switched off close the android app
+    if ((millis() - tms_received) > tms_received_tout * 3) {
+      if (ICom.app_state() == false) {
+        exit();
+      }
     }
   }
 }
@@ -78,66 +92,152 @@ void displayName() {
 
 
 /* -------------------------------------------------------------------------
- The function draws the current state of the connction and the receiver ID 
- on the right corner of the screen.
- ----------------------------------------------------------------------------   
- */
-class Indicator {
-  int tx, ty, ex, ey, ed;
-  String gr, rd;
-
-  Indicator(String green, String red, float x, float y) {
+   The function draws the current state of the connction and the receiver ID 
+   on the right corner of the screen.
+   State: Bit 0 ip_not_received
+          Bit 1 no rpi_message
+          Bit 2 udp_send err
+----------------------------------------------------------------------------   
+*/
+class Indicator 
+{
+  int tx, ty, ex, ey, ed, state;
+  String tID, tor, trd;
+  boolean RecApp;   
+  Indicator(float x, float y)
+  { 
+    state = 7;
+    RecApp = true;
+    // geometry
     ex = int(width * x);
     ey = int(height * y);
     ed = int(height * 0.05);
     tx = int(width * (x - 0.03));
     ty = int(height * (y + 0.015)); 
-    gr = green;
-    rd = red;
+    // text output
+    tID = "";    
+    trd = "No divice";
   }
 
-  void display(boolean state) {
+  void set_app_state(boolean app)
+  {
+    RecApp = app;
+  }
+
+  boolean app_state()
+  {
+    return RecApp;
+  }
+
+  void set_err_state(int s)
+  {
+    state = (state | s) ;
+  }
+
+  void rem_err_state(int s)
+  {
+    state = (state & (7-s));
+  }
+
+  void clear_err_state()
+  {
+    state = 0;
+    RecApp = true;
+  }
+
+  int err_state()
+  {
+    return state;
+  }
+
+  void set_device_name(String t)
+  {
+    tID = t;
+  }
+
+  void display() {
     textAlign(RIGHT);
-    if (state == true) {
+    switch(state)
+    {
+    case 0: 
+      // green, ip_received
       fill(#04C602);
-      ellipse(ex, ey, ed, ed);  
+      ellipse(ex, ey, ed, ed);
       fill(80);
-      text(gr, tx, ty);
-    } else {
+      if (overI()){
+        text(ip, tx, ty);
+      } else {
+        text(tID, tx, ty);  
+      }     
+      break; 
+    case 2: 
+      // orange, missing rpi msg
+      fill(#FFF703);
+      ellipse(ex, ey, ed, ed);
+      fill(80);
+      text("Rpi Error", tx, ty); 
+      if (RecApp == false) {
+        state = 1;
+      }
+      break; 
+    case 4: 
+      // orange, missing UPD error
+      fill(#FFF703);
+      ellipse(ex, ey, ed, ed);
+      fill(80);
+      text("UDP Error", tx, ty);    
+      break; 
+    default: 
+      // afer startup, without commuication 
       fill(#FF0000);
       ellipse(ex, ey, ed, ed);
       fill(80);
-      text(rd, tx, ty);
+      text("No Device", tx, ty);  
+      break;
     }
   }
+  
+  boolean overI()
+  {
+    boolean result = false;
+    if ((overCircle(ex, ey, ed)) != 0)
+    {
+      result = true;
+    }
+    return result;
+  } 
 }
+
 
 /* ----------------------------------------------------------------------------------
  That is the default method of the UDP library for listening. The receiver transmits 
  cyclic every second the following string decoded to the Application: "ID@IP". 
  Example "RC#001@192.168.43.3". It will be splitted and checked whether it is an IP 
  from an local network. The variable 'ip_received' and the timestamp is set.
- ------------------------------------------------------------------------------------  
- */
-void receive(byte[] data) {  
+------------------------------------------------------------------------------------  
+*/
+void receive(byte[] data)
+{  
   String message = new String( data );
   String[] parts = split(message, "@");
-  ID = parts[0]; 
   String[] ip_parts = split(parts[1], ".");
   // checking wether it is probably a IP adress
-  if ((int(ip_parts[0])==192) && (int(ip_parts[1])==168)) {
+  if ((int(ip_parts[0])==192) && (int(ip_parts[1])==168))
+  {
     ip = parts[1];
-    ip_received = true;
+    ICom.clear_err_state(); 
+    ICom.set_device_name(parts[0]);
     tms_received = millis();
   }
 }
 
 /* -----------------------------------------------------------------------------
- Creates two strings from a decimal value with an input limitation from 0 to 255. 
- ---------------------------------------------------------------------------------
- */
-String int2str(int inp) {
-  return (CodeTable[inp /16] + CodeTable[inp %16]);
+   Creates two strings from a decimal value with an input limitation from 0 to 255. 
+---------------------------------------------------------------------------------
+*/
+String int2str(int inp)
+{
+  return (CodeTable[inp /16] + CodeTable[inp %16]); 
 }
 
 /* ---------------------------------------------------------------------
@@ -161,19 +261,19 @@ class LeverT {
     lim_pos_low = clim_pos_low;
     lim_pos_high = clim_pos_high;
     center_pos = ((lim_pos_high - lim_pos_low) * cdefault_Pos/100) + lim_pos_low;
-    backlim_high =  center_pos + (lim_pos_high - lim_pos_low)/3;
-    backlim_low =   center_pos - (lim_pos_high - lim_pos_low)/3;
+    backlim_high =  center_pos + (lim_pos_high - lim_pos_low)/8;
+    backlim_low =   center_pos - (lim_pos_high - lim_pos_low)/8;
     d = int(height * 0.2);
     rgrid = int(d* 0.75);  
     StrCh = "Channel";
     py = ct;
     px = center_pos;
-    ty = int(py + py*0.3);
+    ty = int(py + height*0.16);
     tx = center_pos; 
-    tvy = int(py - py*0.5);
+    tvy = int(py - height * 0.25);
     vh = int(height * 0.1);
     vw = vh * 3; 
-    vr = int(vh*0.15);
+    vr = int(vh * 0.15);
     //LeverHandle(px, py);
     ValMap = new int [int(lim_pos_high)+1]; 
     createValMap(int(lim_pos_low), int(lim_pos_high));
@@ -186,7 +286,7 @@ class LeverT {
     fill(80); 
     textAlign(CENTER);
     text(StrCh, tx, ty);
-    println( px);
+    //println( px);
     valIdx = overCircle(px, py, rgrid);
     if (valIdx != 0) {
       px = constrain((mouseX), lim_pos_low, lim_pos_high);
@@ -263,71 +363,86 @@ class LeverT {
 
 /* --------------------------------------------------------------------------
  This class draws a switsch with two positions On - Off
- r: radius
- cx: distance to the left border of the screen
- cy: distance to the top border of the screen
- channel: channel number (0..15) of the PWM module
- ----------------------------------------------------------------------------
- */
-class Switch {
+      r: radius
+      cx: distance to the left border of the screen
+      cy: distance to the top border of the screen
+      channel: channel number (0..15) of the PWM module
+----------------------------------------------------------------------------
+*/
+class Switch 
+{
   int SWh, SWr, SWx, SWy, SWOff, SWOn, SWd, pSWPos, SWytOn, SWytOff, SWgrid, SWhdr;
-  int valIdx = 0, SWCh;
+  int valIdx = 0, SWCh, SWxc, SWyc;
   String StrCh = "";
 
-  Switch ( int r, int cx, int cy, int channel, int hdr) {
+  Switch ( int r, int cx, int cy, int channel, int hdr)
+  {
     SWr = r; 
     SWd = 2 * r;
     SWh = 4 * SWr; 
     SWx = cx;
     SWy = cy;
-    SWytOn = SWy + int(3.5 * SWr); 
-    SWytOff = SWy - int(2.5 * SWr);
-    SWOff = SWy - SWr; 
-    SWOn = SWy + SWr; 
+    SWytOn = SWy - int(2.5 * SWr); 
+    SWytOff = SWy + int(3.5 * SWr);
+    SWOff = SWy + SWr; 
+    SWOn = SWy - SWr; 
     SWgrid = int(1.5 * SWr);
     pSWPos = SWOff;
     SWCh = channel;
     SWhdr = hdr;
+    SWxc = (SWx - int(width * 0.05));
+    SWyc = (SWytOn - int((SWytOn - SWytOff)*0.5));
     StrCh = "C"+ str(SWCh);
   }
 
-  void display() {
+  void display()
+  {
     rectMode(CENTER);
     stroke(75);
     fill(110); 
     rect(SWx, SWy, SWr, SWh, 1.5*SWr);  // base plate 
     drawLabel();
-    if (pSWPos == SWOff) {
+    if (pSWPos == SWOff)
+    {
       fill(160);
-    } else {
+    } else
+    {
       fill(20, 150, 20);
     }
     ellipse (SWx, pSWPos, SWd, SWd);
     rectMode(CORNER);
   }
 
-  void drawLabel() {
+  void drawLabel() 
+  {
     fill(80); 
     textAlign(CENTER);
-    text(StrCh, SWx, SWytOn); 
-    text("", SWx, SWytOff);
+    text("ON", SWx, SWytOn); 
+    text("OFF", SWx, SWytOff);
+    text(StrCh, SWxc, SWyc);
   }
 
-  String getSval() {
-    if (pSWPos == SWOff) {  
+  String getSval()
+  {
+    if (pSWPos == SWOff)
+    {  
       return (int2str(SWhdr) + int2str(SWCh) + int2str(0));
-    } else {
+    } else
+    {
       return (int2str(SWhdr) + int2str(SWCh) + int2str(254));
     }
   }
 
-  boolean overS() {
-    boolean result = false; 
-    if ((overCircle(SWx, SWOff, SWgrid)) != 0){
+  boolean overS()
+  {
+    boolean result = false;
+    if (overCircle(SWx, SWOff, SWgrid) != 0)
+    {
       pSWPos = SWOff;
       result = true;
     }
-    if ((overCircle(SWx, SWOn, SWgrid)) != 0){
+    if (overCircle(SWx, SWOn, SWgrid) !=0)
+    {
       pSWPos = SWOn;
       result = true;
     }
@@ -342,11 +457,12 @@ class Switch {
  the receiver.
  ----------------------------------------------------------------------------
  */
-class SwitchApp extends Switch {
-
-  SwitchApp ( int r, int cx, int cy, int channel, int hdr) {
+class SwitchApp extends Switch 
+{
+  public SwitchApp ( int r, int cx, int cy, int channel, int hdr) {
     super (r, cx, cy, channel, hdr); 
     pSWPos = SWOn;
+   
   }
 
   void drawLabel() {
@@ -354,13 +470,14 @@ class SwitchApp extends Switch {
     textAlign(CENTER);
     text("ON", SWx, SWytOn); 
     text("OFF", SWx, SWytOff);
+    text("PI", SWxc, SWyc);
   }
 }
 
 
 /*-------------------------------------------------------------------------
- This sclass draws the trim buttons and an indication 
- area to depict the current trim value. 
+ This sclass draws the buttons for channel setting and an indication 
+ area to depict the channelvalue. 
  ----------------------------------------------------------------------------
  */
 class Channel {
@@ -372,9 +489,6 @@ class Channel {
     ichannel = 0;
     centerX = cX;
     centerY = cY; 
-    //PFont Ltrimf;
-    //Ltrimf = createFont("Arial-BoldMT-16.vlw", 16);   
-    //textFont(Ltrimf, r/2);
     dist = int(height * 0.2);
     if (orientation == "P") {
       x1 = centerX;  
